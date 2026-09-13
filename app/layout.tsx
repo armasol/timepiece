@@ -3,15 +3,19 @@ import './globals.css';
 import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'Timepiece — Verified Watches Onchain',
-  description: 'Buy, trade and list verified luxury watch ownership on Robinhood Chain.',
-  openGraph: { title: 'Timepiece', description: 'Real watches. Real value. Onchain ownership.' }
+  title: 'Timepiece — Watch-linked token markets',
+  description: 'Verify a watch, create its record, and connect it to an onchain token market on Robinhood Chain.',
+  icons: {
+    icon: '/images/favicon.png',
+    shortcut: '/images/favicon.png',
+    apple: '/images/favicon.png'
+  },
+  openGraph: {
+    title: 'Timepiece',
+    description: 'Watch records, verification and onchain token markets.'
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body><Providers>{children}</Providers></body>
-    </html>
-  );
+  return <html lang="en"><body><Providers>{children}</Providers></body></html>;
 }

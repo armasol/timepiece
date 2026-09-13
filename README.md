@@ -1,6 +1,6 @@
 # Timepiece
 
-Production-oriented Next.js marketplace for verified luxury watches with Pons v2 markets on Robinhood Chain.
+Production-oriented Next.js marketplace for watch records, possession verification, wallet interactions and Pons v2 markets on Robinhood Chain.
 
 ## What is implemented
 
@@ -8,8 +8,8 @@ Production-oriented Next.js marketplace for verified luxury watches with Pons v2
 - WebGL watch experience with vanilla Three.js WebGL / Three.js + GSAP scroll choreography.
 - Custom EIP-1193 / EIP-6963 wallet connection layer. No RainbowKit, Wagmi, Coinbase CDP, WalletConnect, or x402 dependency chain.
 - Robinhood Chain switching/add-network flow (chain id `4663`).
-- Luxury-watch marketplace with the top 10 brand filters.
-- Real watch listing submission, Supabase Storage uploads, possession-code verification and wallet-signature verification.
+- Luxury-watch marketplace with the top 10 brand filters and a real `/tokens` alias to the market.
+- Step-by-step watch listing flow: MetaMask/EVM wallet confirmation first, watch details, multi-image Supabase Storage uploads, possession-code photo and final wallet-signature verification.
 - Admin verification queue with protected server APIs.
 - Pons v2 launch-draft generation using live launch fee, live enabled config, pinned launch economics and `canLaunch()`.
 - Admin wallet can submit the Pons launch; after confirmation the app decodes `TokenLaunched` and automatically saves token + curve addresses and launch block.
@@ -68,7 +68,10 @@ NEXT_PUBLIC_PONS_FACTORY_ADDRESS=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
 
 ```env
 NEXT_PUBLIC_ENABLE_MAINNET_ACTIONS=false
+NEXT_PUBLIC_ENABLE_DEMO_DATA=false
 ```
+
+`NEXT_PUBLIC_ENABLE_DEMO_DATA` is off by default so an unconfigured production deployment does not present placeholder watch values or statuses as real listings.
 
 This lets the admin generate and verify a real Pons launch draft without broadcasting a launch. Set it to `true` only after Supabase, your admin key, wallet and Pons access are verified.
 
@@ -91,6 +94,18 @@ vercel
 ```
 
 Add all environment variables to the Vercel project before production deployment.
+
+
+## Brand assets
+
+Place the final production artwork in:
+
+```text
+public/images/logo.png
+public/images/favicon.png
+```
+
+`logo.png` is used by the navigation, footer and admin interface. The UI has an elegant text fallback so the app still renders before the final logo is added. `favicon.png` is referenced from Next.js metadata.
 
 ## Wallet support
 
@@ -118,7 +133,7 @@ The previous `experimental.typedRoutes` setting was removed, so the Next.js 15 w
 - `/` — animated landing page
 - `/watches` — marketplace
 - `/watches/[slug]` — watch + live token market
-- `/list` — owner listing/verification flow
+- `/list` — five-step owner listing/verification flow (wallet → watch → photos → owner proof → review)
 - `/admin` — admin queue (server actions still require `TIMEPIECE_ADMIN_KEY`)
 - `/api/pons/status` — live Pons factory/config/launch eligibility status
 - `/api/pons/token/[address]` — live Pons + Robinhood market data

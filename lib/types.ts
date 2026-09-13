@@ -36,6 +36,7 @@ export type WatchListing = {
   published: boolean;
   signature?: string | null;
   market?: TokenSnapshot | null;
+  images?: Array<{ id?: string; image_url: string; image_type: string }> | null;
   created_at: string;
   updated_at: string;
 };

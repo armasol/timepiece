@@ -24,7 +24,7 @@ export async function POST(request: Request){
      canLaunch: status.canLaunch,
      tokenParams: {
        name, symbol, logo: body.logo || body.primary_image_url || '',
-       description: body.description || `${name}. Verified on Timepiece. Appraised value: $${Number(body.appraised_value_usd || 0).toLocaleString('en-US')}.`,
+       description: body.description || `${name}. Watch record on Timepiece.${body.year ? ` Year: ${body.year}.` : ''}${body.condition ? ` Condition: ${body.condition}.` : ''}`,
        socials: { twitter:'', telegram:'', discord:'', website: process.env.NEXT_PUBLIC_SITE_URL || '', farcaster:'' },
        creatorFeeRecipient: body.creatorFeeRecipient,
        creatorTaxBps,

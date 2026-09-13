@@ -52,7 +52,7 @@ Server-generated one-time possession codes.
 A listing code expires after 30 minutes. On successful submission the API sets `consumed_at` and attaches `watch_id`.
 
 ### `watch_images`
-Optional normalized image records for future multi-image galleries. The current form stores the main URLs directly on `watches`, while files live in the `watch-images` Storage bucket.
+Normalized additional watch images. The listing wizard currently stores optional `back`, `side` and `clasp` images here after the canonical watch row is created. The primary and owner-proof URLs remain directly on `watches` for fast rendering. Files themselves live in the `watch-images` Storage bucket.
 
 ### `market_trades`
 Trust-minimized pre-graduation Pons curve trades indexed from Robinhood Chain.
@@ -102,10 +102,11 @@ It is public-read so marketplace images can render directly. Uploads happen thro
 
 ## Listing lifecycle
 
-1. Client calls `POST /api/verification-code`.
-2. Server stores a random expiring code in `verification_codes`.
-3. Owner uploads watch + code photos through `POST /api/upload`.
-4. Owner signs exactly:
+1. Owner connects an EVM wallet (MetaMask is the primary UI path) and signs a free local wallet-confirmation message before entering the listing wizard.
+2. Owner fills the watch record and uploads the primary + optional additional angles through `POST /api/upload`.
+3. Client calls `POST /api/verification-code`; the server stores a random expiring code in `verification_codes`.
+4. Owner uploads the watch + handwritten-code possession photo.
+5. At final submission, the owner signs exactly:
 
 ```text
 Timepiece listing verification
@@ -114,11 +115,11 @@ Code: <TP code>
 Watch: <brand> <model> <reference>
 ```
 
-5. `POST /api/watches` reconstructs that message server-side and verifies the EVM signature with `viem.verifyMessage`.
-6. API verifies the code exists, is unused and not expired.
-7. Watch is inserted as `submitted`, `published=false`.
-8. Admin reviews possession/authentication and changes status through `PATCH /api/admin/watches/[id]`.
-9. Admin may publish it and/or launch the Pons market.
+6. `POST /api/watches` reconstructs that final listing message server-side and verifies the EVM signature with `viem.verifyMessage`.
+7. API verifies the code exists, is unused and not expired.
+8. Watch is inserted as `submitted`, `published=false`; additional images are normalized into `watch_images`.
+9. Admin reviews possession/authentication and changes status through `PATCH /api/admin/watches/[id]`.
+10. Admin may publish it and/or launch the Pons market.
 
 ## Pons launch lifecycle
 
@@ -191,4 +192,4 @@ Cron requests require `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` i
 
 ## If Supabase is not configured
 
-The public marketplace intentionally falls back to a tiny local demo dataset so the design can render. Database submissions, uploads, verification and admin operations return configuration errors instead of silently pretending to save data.
+Production defaults to an empty marketplace rather than presenting placeholder watch values or verification states as real data. To preview the built-in local demo records during design work only, set `NEXT_PUBLIC_ENABLE_DEMO_DATA=true`. Database submissions, uploads, verification and admin operations still require Supabase.

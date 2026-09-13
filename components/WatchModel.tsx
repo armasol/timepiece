@@ -94,6 +94,39 @@ function makeWatch() {
   crystal.position.z = 0.29;
   root.add(crystal);
 
+
+  // Fine polished inner ring adds a sharper transition between bezel and dial.
+  const chapterRing = new THREE.Mesh(new THREE.TorusGeometry(1.255, 0.018, 16, 128), steel);
+  chapterRing.position.z = 0.342;
+  root.add(chapterRing);
+
+  // Twelve-o'clock triangle and bezel pip.
+  const twelve = new THREE.Mesh(new THREE.ConeGeometry(0.105, 0.20, 3), lume);
+  twelve.position.set(0, 1.03, 0.355);
+  twelve.rotation.z = Math.PI;
+  root.add(twelve);
+  const bezelPip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 20, 20), green);
+  bezelPip.position.set(0, 1.455, 0.345);
+  root.add(bezelPip);
+
+  // Date aperture at three o'clock. It is intentionally generic rather than branded.
+  const dateFrame = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.27, 0.038), steel);
+  dateFrame.position.set(0.72, 0, 0.356);
+  root.add(dateFrame);
+  const dateFace = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.21, 0.044), new THREE.MeshStandardMaterial({ color: 0xeee9dc, roughness: 0.5 }));
+  dateFace.position.set(0.72, 0, 0.379);
+  root.add(dateFace);
+  const dateMark = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.035, 0.016), new THREE.MeshStandardMaterial({ color: 0x151715, roughness: 0.7 }));
+  dateMark.position.set(0.72, 0, 0.405);
+  root.add(dateMark);
+
+  // Minimal dial signatures rendered as physical marks to keep the model self-contained.
+  [0.28, 0.18, 0.11].forEach((width, index) => {
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(width, 0.022, 0.012), index === 0 ? steel : lume);
+    mark.position.set(0, 0.52 - index * 0.08, 0.355);
+    root.add(mark);
+  });
+
   for (let i = 0; i < 60; i++) {
     const major = i % 5 === 0;
     const a = (i / 60) * Math.PI * 2;
@@ -149,6 +182,12 @@ function makeWatch() {
   crown.rotation.z = Math.PI / 2;
   crown.position.set(1.77, 0, 0.02);
   root.add(crown);
+  for (let i = -3; i <= 3; i++) {
+    const groove = new THREE.Mesh(new THREE.TorusGeometry(0.192, 0.009, 8, 28), steelDark);
+    groove.rotation.y = Math.PI / 2;
+    groove.position.set(1.77 + i * 0.026, 0, 0.02);
+    root.add(groove);
+  }
   [-0.28, 0.28].forEach((y) => {
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.25, 0.24), steel);
     guard.position.set(1.58, y, 0);
@@ -215,7 +254,7 @@ export function WatchCanvas({ progress = 0 }: { progress?: number }) {
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.18;
     mount.appendChild(renderer.domElement);
 
     const watch = makeWatch();
@@ -241,7 +280,7 @@ export function WatchCanvas({ progress = 0 }: { progress?: number }) {
       }
     });
 
-    scene.add(new THREE.HemisphereLight(0xf7f2e4, 0x050605, 1.35));
+    scene.add(new THREE.HemisphereLight(0xf7f2e4, 0x050605, 1.48));
 
     const key = new THREE.SpotLight(0xffffff, 105, 20, 0.34, 0.9, 1.5);
     key.position.set(4, 6, 7);
@@ -253,7 +292,7 @@ export function WatchCanvas({ progress = 0 }: { progress?: number }) {
     rim.position.set(-4.2, -1.4, 4.2);
     scene.add(rim);
 
-    const fill = new THREE.PointLight(0x8ea3ff, 8, 14, 2);
+    const fill = new THREE.PointLight(0xd8dfef, 7, 14, 2);
     fill.position.set(3.8, -2.5, 2.5);
     scene.add(fill);
 

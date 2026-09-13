@@ -1,2 +1,3 @@
 import Link from 'next/link';
-export function Footer(){return <footer className="footer"><div className="container" style={{display:'flex',justifyContent:'space-between',gap:20,flexWrap:'wrap'}}><div><b style={{color:'var(--text)',letterSpacing:'.25em'}}>TIMEPIECE</b><p>Verified luxury watches. Onchain markets.</p></div><div style={{display:'flex',gap:24}}><Link href="/watches">Watches</Link><Link href="/list">List your watch</Link><Link href="/about">About</Link></div></div></footer>}
+import { BrandLogo } from './BrandLogo';
+export function Footer(){return <footer className="footer"><div className="container footer-grid"><div><BrandLogo compact/><p>Watch records, verification and onchain token markets in one interface.</p></div><div className="footer-links"><Link href="/watches">Watches</Link><Link href="/list">List a watch</Link><Link href="/about">Docs</Link></div></div></footer>}
