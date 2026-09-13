@@ -59,3 +59,17 @@ Read `README_DATABASE.md` and run `supabase/schema.sql`.
 ## Pons notes
 
 Pons v2 uses the factory at `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` on Robinhood Chain. Launching uses one `launchToken(TokenParams, launchConfigId, pairToken)` transaction. Token discovery, trading and charts should use onchain reads/events, not a centralized Pons API.
+
+## Dependency/build notes
+
+This package includes RainbowKit explicitly (the previous archive imported it but did not declare it), uses ESLint 9 with Next.js 15, and overrides the deprecated `three-mesh-bvh@0.7.8` line with a modern compatible `0.8.x` release.
+
+Recommended verification before deployment:
+
+```bash
+npm install
+npm run typecheck
+npm run build
+```
+
+Some wallet libraries can emit upstream deprecation notices for optional/transitive WalletConnect or MetaMask SDK packages during install. Those notices are not missing dependencies or build failures. Do not force arbitrary transitive versions unless the wallet stack itself is upgraded.
