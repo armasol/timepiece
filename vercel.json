@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/market-sync", "schedule": "*/30 * * * *" }
+  ]
+}

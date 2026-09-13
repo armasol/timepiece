@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export function Footer(){return <footer className="footer"><div className="container" style={{display:'flex',justifyContent:'space-between',gap:20,flexWrap:'wrap'}}><div><b style={{color:'var(--text)',letterSpacing:'.25em'}}>TIMEPIECE</b><p>Verified luxury watches. Onchain ownership.</p></div><div style={{display:'flex',gap:24}}><Link href="/watches">Watches</Link><Link href="/list">List</Link><Link href="/admin">Admin</Link></div></div></footer>}
