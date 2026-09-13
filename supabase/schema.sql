@@ -1,10 +1,15 @@
--- Timepiece Supabase schema
--- Run this in Supabase SQL Editor before deploying.
+-- Timepiece production schema for Supabase Postgres + Storage.
+-- Safe to re-run. Apply this entire file in Supabase SQL Editor.
 
 create extension if not exists pgcrypto;
 
-create type verification_status as enum ('draft','submitted','owner_verified','authenticated','rejected');
-create type watch_condition as enum ('Unworn','Excellent','Very Good','Good','Fair');
+do $$ begin
+  create type verification_status as enum ('draft','submitted','owner_verified','authenticated','rejected');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type watch_condition as enum ('Unworn','Excellent','Very Good','Good','Fair');
+exception when duplicate_object then null; end $$;
 
 create table if not exists public.watches (
   id uuid primary key default gen_random_uuid(),
@@ -23,6 +28,9 @@ create table if not exists public.watches (
   verification_code text,
   pons_token_address text check (pons_token_address is null or pons_token_address ~ '^0x[a-fA-F0-9]{40}$'),
   pons_curve_address text check (pons_curve_address is null or pons_curve_address ~ '^0x[a-fA-F0-9]{40}$'),
+  pons_launch_tx_hash text,
+  pons_launch_block bigint,
+  market_synced_block bigint,
   description text,
   box_papers boolean not null default false,
   serial_verified boolean not null default false,
@@ -30,6 +38,20 @@ create table if not exists public.watches (
   signature text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+-- Migration helpers for databases created from an earlier Timepiece schema.
+alter table public.watches add column if not exists pons_launch_tx_hash text;
+alter table public.watches add column if not exists pons_launch_block bigint;
+alter table public.watches add column if not exists market_synced_block bigint;
+
+create table if not exists public.verification_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  watch_id uuid references public.watches(id) on delete set null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.watch_images (
@@ -40,17 +62,40 @@ create table if not exists public.watch_images (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.market_trades (
+  id uuid primary key default gen_random_uuid(),
+  watch_id uuid references public.watches(id) on delete cascade,
+  token_address text not null,
+  curve_address text not null,
+  side text not null check (side in ('buy','sell')),
+  tx_hash text not null,
+  log_index integer not null,
+  block_number bigint not null,
+  block_time timestamptz not null,
+  quote_wei numeric(78,0) not null,
+  token_amount_wei numeric(78,0) not null,
+  fee_wei numeric(78,0) not null default 0,
+  tax_wei numeric(78,0) not null default 0,
+  price_eth numeric(38,20) not null,
+  created_at timestamptz not null default now(),
+  unique (token_address, tx_hash, log_index)
+);
+
 create table if not exists public.token_snapshots (
   id uuid primary key default gen_random_uuid(),
   watch_id uuid references public.watches(id) on delete cascade,
   token_address text not null,
   holder_count integer,
-  market_cap_usd numeric(18,4),
-  price_usd numeric(18,10),
-  volume_24h_usd numeric(18,4),
-  source text not null default 'blockscout',
+  market_cap_usd numeric(24,4),
+  price_usd numeric(24,12),
+  price_eth numeric(38,20),
+  volume_24h_usd numeric(24,4),
+  phase text,
+  source text not null default 'robinhood+pons',
   created_at timestamptz not null default now()
 );
+alter table public.token_snapshots add column if not exists price_eth numeric(38,20);
+alter table public.token_snapshots add column if not exists phase text;
 
 create table if not exists public.reward_cycles (
   id uuid primary key default gen_random_uuid(),
@@ -73,22 +118,41 @@ create table if not exists public.admin_events (
   created_at timestamptz not null default now()
 );
 
+create index if not exists watches_published_idx on public.watches(published, created_at desc);
+create index if not exists watches_token_idx on public.watches(pons_token_address);
+create index if not exists market_trades_token_time_idx on public.market_trades(token_address, block_time asc);
+create index if not exists token_snapshots_watch_time_idx on public.token_snapshots(watch_id, created_at desc);
+create index if not exists verification_codes_code_idx on public.verification_codes(code);
+
 alter table public.watches enable row level security;
+alter table public.verification_codes enable row level security;
 alter table public.watch_images enable row level security;
+alter table public.market_trades enable row level security;
 alter table public.token_snapshots enable row level security;
 alter table public.reward_cycles enable row level security;
 alter table public.admin_events enable row level security;
 
--- Public users can read published watches only.
+drop policy if exists "public read published watches" on public.watches;
 create policy "public read published watches" on public.watches for select using (published = true);
-create policy "public insert submitted watches" on public.watches for insert with check (verification_status = 'submitted' and published = false);
+
+drop policy if exists "public read watch images" on public.watch_images;
 create policy "public read watch images" on public.watch_images for select using (true);
+
+drop policy if exists "public read market trades" on public.market_trades;
+create policy "public read market trades" on public.market_trades for select using (true);
+
+drop policy if exists "public read token snapshots" on public.token_snapshots;
 create policy "public read token snapshots" on public.token_snapshots for select using (true);
+
+drop policy if exists "public read reward cycles" on public.reward_cycles;
 create policy "public read reward cycles" on public.reward_cycles for select using (true);
 
--- Server-side service role bypasses RLS. Admin APIs use SUPABASE_SERVICE_ROLE_KEY.
+-- Verification codes and admin events intentionally have no public policies.
+-- Server routes use the service role key and bypass RLS.
 
-insert into storage.buckets (id, name, public) values ('watch-images','watch-images',true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public)
+values ('watch-images','watch-images',true)
+on conflict (id) do update set public = excluded.public;
 
-create policy "public upload watch images" on storage.objects for insert with check (bucket_id = 'watch-images');
+drop policy if exists "public read watch images bucket" on storage.objects;
 create policy "public read watch images bucket" on storage.objects for select using (bucket_id = 'watch-images');

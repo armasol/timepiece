@@ -11,8 +11,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     return NextResponse.json({ watch, demo: true });
   }
   const supabase = getSupabaseAdmin();
-  const query = supabase.from('watches').select('*');
+  const query = supabase.from('watches').select('*').eq('published', true);
   const { data, error } = uuidLike.test(id) ? await query.eq('id', id).single() : await query.eq('slug', id).single();
-  if(error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if(error) return NextResponse.json({ error: 'Watch not found' }, { status: 404 });
   return NextResponse.json({ watch: data });
 }

@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    typedRoutes: false
-  },
+  reactStrictMode: true,
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },

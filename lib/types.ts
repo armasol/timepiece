@@ -1,6 +1,15 @@
 export type VerificationStatus = 'draft' | 'submitted' | 'owner_verified' | 'authenticated' | 'rejected';
 export type WatchCondition = 'Unworn' | 'Excellent' | 'Very Good' | 'Good' | 'Fair';
 
+export type TokenSnapshot = {
+  holder_count?: number | null;
+  market_cap_usd?: number | null;
+  price_usd?: number | null;
+  price_eth?: number | null;
+  volume_24h_usd?: number | null;
+  phase?: string | null;
+};
+
 export type WatchListing = {
   id: string;
   slug: string;
@@ -18,10 +27,15 @@ export type WatchListing = {
   verification_code: string | null;
   pons_token_address: `0x${string}` | string | null;
   pons_curve_address: `0x${string}` | string | null;
+  pons_launch_tx_hash?: string | null;
+  pons_launch_block?: number | null;
+  market_synced_block?: number | null;
   description: string | null;
   box_papers: boolean;
   serial_verified: boolean;
   published: boolean;
+  signature?: string | null;
+  market?: TokenSnapshot | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,8 +47,12 @@ export type TokenMarket = {
   holders?: number;
   marketCapUsd?: number | null;
   priceUsd?: number | null;
+  priceEth?: number | null;
   volume24hUsd?: number | null;
   curveAddress?: string | null;
   phase?: string | null;
+  phaseCode?: number | null;
+  creatorTaxBps?: number | null;
+  buybackEnabled?: boolean | null;
   candles?: Array<{ time: number; open: number; high: number; low: number; close: number }>;
 };

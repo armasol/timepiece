@@ -1,59 +1,194 @@
-# Timepiece Database README
+# Timepiece — Supabase / Database Handoff
 
-Use Supabase Postgres + Storage. This app is already wired to Supabase; it only needs your project URL/keys and the SQL schema installed.
+This file is written so a future developer or AI can connect, migrate, debug, or extend the Timepiece database without reverse-engineering the app.
 
-## 1. Create Supabase project
+## Source of truth
 
-Create a Supabase project, then copy:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-```
-
-Add those values to Vercel Environment Variables and `.env.local` for local dev.
-
-## 2. Run schema
-
-Open Supabase → SQL Editor → paste and run:
+Run:
 
 ```text
 supabase/schema.sql
 ```
 
-This creates:
+The schema is idempotent and includes migration-safe `add column if not exists` statements for earlier Timepiece databases.
 
-- `watches` — core marketplace listing + Pons token/curve addresses
-- `watch_images` — all owner/admin uploaded photos
-- `token_snapshots` — cached token holder/price/market data
-- `reward_cycles` — hourly reward accounting windows
-- `admin_events` — audit trail
-- `watch-images` storage bucket
-
-## 3. Minimal production rules
-
-Set these env vars:
+## Required environment variables
 
 ```env
-TIMEPIECE_ADMIN_KEY=long-random-secret
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-walletconnect-project-id
-NEXT_PUBLIC_ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
-NEXT_PUBLIC_ENABLE_MAINNET_ACTIONS=false
-PONS_FACTORY_ADDRESS=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
-PONS_DEFAULT_LAUNCH_CONFIG_ID=0
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key; SERVER ONLY>
+TIMEPIECE_ADMIN_KEY=<long random admin secret>
 ```
 
-`NEXT_PUBLIC_ENABLE_MAINNET_ACTIONS=false` keeps wallet transaction buttons hidden/disabled until you are ready.
+The current API implementation performs writes with the Supabase service-role client from Vercel route handlers. The service-role key must never be prefixed with `NEXT_PUBLIC_`.
 
-## 4. AI handoff notes
+## Tables
 
-The next AI/dev step should connect these routes to real production workflows:
+### `watches`
+The canonical marketplace record.
 
-- `POST /api/watches` creates a submitted watch listing.
-- `PATCH /api/admin/watches/:id` verifies/publishes/links Pons contracts.
-- `GET /api/pons/status` checks current factory fee/config/canLaunch.
-- `POST /api/pons/launch-draft` generates exact Pons v2 `TokenParams` for a verified watch.
-- `GET /api/pons/token/:address` pulls live token metadata from Robinhood Blockscout.
+Important fields:
 
-For real market charts, create an indexer that reads Pons `CurveBuy` and `CurveSell` events before graduation, then Uniswap v4 swaps after graduation. Store OHLC candles in a new `market_candles` table.
+- `id` — UUID primary key
+- `slug` — public watch URL identifier
+- `brand`, `model`, `reference_number`, `year`, `condition`
+- `appraised_value_usd`
+- `tokenized_percent`
+- `owner_wallet`
+- `verification_code`
+- `primary_image_url`, `verification_image_url`
+- `verification_status` — `draft | submitted | owner_verified | authenticated | rejected`
+- `published`
+- `pons_token_address`
+- `pons_curve_address`
+- `pons_launch_tx_hash`
+- `pons_launch_block`
+- `market_synced_block` — last Robinhood block processed by the market indexer
+
+### `verification_codes`
+Server-generated one-time possession codes.
+
+A listing code expires after 30 minutes. On successful submission the API sets `consumed_at` and attaches `watch_id`.
+
+### `watch_images`
+Optional normalized image records for future multi-image galleries. The current form stores the main URLs directly on `watches`, while files live in the `watch-images` Storage bucket.
+
+### `market_trades`
+Trust-minimized pre-graduation Pons curve trades indexed from Robinhood Chain.
+
+Each row is unique by:
+
+```text
+(token_address, tx_hash, log_index)
+```
+
+Fields include side, block/time, raw quote/token amounts, fee, creator tax and calculated ETH-per-token execution price.
+
+### `token_snapshots`
+Periodic market snapshots written by `/api/cron/market-sync`.
+
+Contains:
+
+- holder count
+- market cap USD
+- token price USD
+- token price ETH
+- 24h volume USD
+- Pons phase
+
+### `reward_cycles`
+Reserved for Timepiece's planned 60-minute reward accounting. The schema exists, but a production reward-distribution smart contract / Merkle claim flow is NOT implemented in this package. Do not represent these rewards as active until that system exists.
+
+### `admin_events`
+Audit trail for protected admin mutations.
+
+## Storage
+
+Bucket:
+
+```text
+watch-images
+```
+
+It is public-read so marketplace images can render directly. Uploads happen through `/api/upload` using the service role. The route accepts only JPG, PNG and WebP and caps files at 12 MB.
+
+## RLS model
+
+- Public can read only `watches.published = true`.
+- Public can read image metadata, indexed trades, snapshots and reward-cycle records.
+- Verification codes and admin events have no public read policy.
+- Server route handlers use the service-role key and bypass RLS for controlled writes.
+
+## Listing lifecycle
+
+1. Client calls `POST /api/verification-code`.
+2. Server stores a random expiring code in `verification_codes`.
+3. Owner uploads watch + code photos through `POST /api/upload`.
+4. Owner signs exactly:
+
+```text
+Timepiece listing verification
+Wallet: <0x wallet>
+Code: <TP code>
+Watch: <brand> <model> <reference>
+```
+
+5. `POST /api/watches` reconstructs that message server-side and verifies the EVM signature with `viem.verifyMessage`.
+6. API verifies the code exists, is unused and not expired.
+7. Watch is inserted as `submitted`, `published=false`.
+8. Admin reviews possession/authentication and changes status through `PATCH /api/admin/watches/[id]`.
+9. Admin may publish it and/or launch the Pons market.
+
+## Pons launch lifecycle
+
+`POST /api/pons/launch-draft`:
+
+- validates creator wallet
+- reads current Pons `launchFee()`
+- enumerates configs and selects an enabled launch config
+- reads `previewLaunchEconomics`
+- reads `canLaunch(launcher)`
+- generates a fresh 32-byte salt
+- builds `TokenParams` entirely from the watch listing
+
+No X, Telegram, Discord, or other social metadata is required; those Pons fields are deliberately blank.
+
+On `/admin`, when mainnet actions are enabled, the connected admin wallet calls `launchToken`. After the receipt arrives, the UI decodes Pons `TokenLaunched` and PATCHes the watch with token, curve, transaction hash and launch block automatically.
+
+## Market-data lifecycle
+
+`/api/cron/market-sync` reads published watches with a Pons token + curve.
+
+For each watch it:
+
+1. Resolves the token through Pons `getLaunchedToken`.
+2. Continues from `market_synced_block`, or from the saved launch block.
+3. Reads real `CurveBuy` and `CurveSell` logs from Robinhood Chain.
+4. Fetches block timestamps.
+5. Upserts normalized rows into `market_trades`.
+6. Reads live curve reserves while phase = `0`.
+7. Gets holder/token metadata from Robinhood Chain Blockscout.
+8. Writes a `token_snapshots` row.
+9. Advances `market_synced_block`.
+
+`GET /api/pons/token/[address]` then combines live Pons state + Blockscout + Supabase trades and returns OHLC candles. The frontend never fabricates chart data.
+
+## Pons phases
+
+The current Pons v2 factory reports:
+
+- `0` — curve trading
+- `1` — swept, waiting for pool creation
+- `2` — Uniswap v4 pool
+- `3` — rescued
+
+The package supports direct trading on phase `0`. It deliberately refuses to pretend curve trading works after graduation. Add the Pons/Uniswap v4 pool router before enabling phase `2` trades from the Timepiece UI.
+
+## API routes for a future AI/dev
+
+```text
+GET    /api/watches
+POST   /api/watches
+GET    /api/watches/[id-or-slug]
+POST   /api/upload
+POST   /api/verification-code
+GET    /api/admin/watches
+PATCH  /api/admin/watches/[id]
+GET    /api/pons/status?launcher=0x...
+POST   /api/pons/launch-draft
+GET    /api/pons/token/[address]
+GET    /api/cron/market-sync
+```
+
+Protected admin routes require:
+
+```http
+x-timepiece-admin-key: <TIMEPIECE_ADMIN_KEY>
+```
+
+Cron requests require `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured.
+
+## If Supabase is not configured
+
+The public marketplace intentionally falls back to a tiny local demo dataset so the design can render. Database submissions, uploads, verification and admin operations return configuration errors instead of silently pretending to save data.

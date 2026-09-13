@@ -1,32 +1,37 @@
 import { NextResponse } from 'next/server';
-import { getPonsStatus, makeSymbol, NATIVE_PAIR, DEFAULT_LAUNCH_CONFIG_ID } from '@/lib/pons';
+import { getPonsStatus, makeSymbol, NATIVE_PAIR } from '@/lib/pons';
 import { isAddress } from 'viem';
+import { randomBytes } from 'node:crypto';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: Request){
  try{
    const body=await request.json();
    if(!isAddress(body.creatorFeeRecipient)) return NextResponse.json({error:'Invalid creator wallet'},{status:400});
-   const status=await getPonsStatus(body.launcher && isAddress(body.launcher) ? body.launcher : body.creatorFeeRecipient);
-   const salt = `0x${Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,'0')).join('')}`;
-   const name = `${body.brand} ${body.model} ${body.reference_number || ''}`.trim();
+   const launcher = body.launcher && isAddress(body.launcher) ? body.launcher : body.creatorFeeRecipient;
+   const status=await getPonsStatus(launcher);
+   const creatorTaxBps = Math.max(0, Math.min(Number(body.creatorTaxBps || process.env.PONS_CREATOR_TAX_BPS || 0), status.maxCreatorTaxBps));
+   const salt = `0x${randomBytes(32).toString('hex')}`;
+   const name = `${body.brand} ${body.model} ${body.reference_number || ''}`.replace(/\s+/g,' ').trim();
    const symbol = makeSymbol(body.brand, body.reference_number);
    return NextResponse.json({
      factory: status.factory,
      launchFeeWei: status.launchFeeWei,
      launchFeeEth: status.launchFeeEth,
-     launchConfigId: DEFAULT_LAUNCH_CONFIG_ID.toString(),
+     launchConfigId: status.launchConfigId,
      pairToken: NATIVE_PAIR,
      canLaunch: status.canLaunch,
      tokenParams: {
        name, symbol, logo: body.logo || body.primary_image_url || '',
-       description: body.description || `${name}. Verified on Timepiece. Appraised value: $${body.appraised_value_usd}.`,
+       description: body.description || `${name}. Verified on Timepiece. Appraised value: $${Number(body.appraised_value_usd || 0).toLocaleString('en-US')}.`,
        socials: { twitter:'', telegram:'', discord:'', website: process.env.NEXT_PUBLIC_SITE_URL || '', farcaster:'' },
        creatorFeeRecipient: body.creatorFeeRecipient,
-       creatorTaxBps: Number(body.creatorTaxBps || 0),
+       creatorTaxBps,
        buybackEnabled: Boolean(body.buybackEnabled ?? true),
        expectedEconomics: status.expectedEconomics,
        salt
      }
    });
- }catch(err:any){return NextResponse.json({error:err.message},{status:500})}
+ }catch(err:any){return NextResponse.json({error:err?.message || 'Unable to prepare launch'},{status:500})}
 }
