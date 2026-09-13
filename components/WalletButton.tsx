@@ -19,8 +19,10 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
   }
 
   return <>
-    <button className="pill" onClick={() => setOpen(true)} disabled={wallet.connecting}>
-      {wallet.connecting ? 'Connecting…' : 'Connect Wallet'} <ArrowUpRight size={16}/>
+    <button className="pill wallet-connect-cta" onClick={() => setOpen(true)} disabled={wallet.connecting} aria-label={wallet.connecting ? 'Connecting wallet' : 'Connect wallet'}>
+      <WalletCards size={16} />
+      <span>{wallet.connecting ? 'Connecting…' : 'Connect Wallet'}</span>
+      <ArrowUpRight size={16}/>
     </button>
     {open && <WalletSheet close={() => setOpen(false)} error={error} setError={setError}/>} 
   </>;
