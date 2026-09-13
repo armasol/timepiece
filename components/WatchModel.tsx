@@ -1,55 +1,334 @@
 'use client';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, ContactShadows, Float, Text3D, Center } from '@react-three/drei';
-import { useMemo, useRef } from 'react';
+
+import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-function Bezel(){
-  return <group>
-    <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[1.55,.11,36,180]}/><meshStandardMaterial color="#d7d2c0" metalness={1} roughness={.18}/></mesh>
-    <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[1.34,.055,24,180]}/><meshStandardMaterial color="#0a0d0a" metalness={.7} roughness={.28}/></mesh>
-    {Array.from({length:24}).map((_,i)=><mesh key={i} position={[Math.sin(i/24*Math.PI*2)*1.47,Math.cos(i/24*Math.PI*2)*1.47,.045]} rotation={[0,0,-i/24*Math.PI*2]}><boxGeometry args={[.025,.18,.025]}/><meshStandardMaterial color={i%2?'#f0e9d6':'#d5fd51'} emissive={i%2?'#000':'#3a4d0c'} emissiveIntensity={.3}/></mesh>)}
-  </group>
-}
-function Bracelet(){
-  return <group>
-    {[-1,1].map(side=><group key={side} position={[0,side*2.05,-.12]}>
-      {Array.from({length:6}).map((_,i)=><mesh key={i} position={[0,(i-2.5)*side*.27,0]}><boxGeometry args={[1.9,.2,.26]}/><meshStandardMaterial color={i%2?'#9e9c93':'#e0dac7'} metalness={1} roughness={.2}/></mesh>)}
-    </group>)}
-  </group>
-}
-function Dial(){
-  const second = useRef<THREE.Group>(null);
-  const minute = useRef<THREE.Group>(null);
-  useFrame(({clock})=>{ if(second.current) second.current.rotation.z=-clock.elapsedTime*1.8; if(minute.current) minute.current.rotation.z=-clock.elapsedTime*.22; });
-  return <group>
-    <mesh><cylinderGeometry args={[1.28,1.28,.12,160]}/><meshStandardMaterial color="#070807" metalness={.5} roughness={.32}/></mesh>
-    <mesh position={[0,0,.08]}><circleGeometry args={[1.21,160]}/><meshStandardMaterial color="#11130f" roughness={.45}/></mesh>
-    {Array.from({length:12}).map((_,i)=><mesh key={i} position={[Math.sin(i/12*Math.PI*2)*.98,Math.cos(i/12*Math.PI*2)*.98,.13]} rotation={[0,0,-i/12*Math.PI*2]}><boxGeometry args={[.06,.24,.035]}/><meshStandardMaterial color="#f4f1e8" emissive="#18160d"/></mesh>)}
-    <group ref={minute} position={[0,0,.18]}><mesh position={[0,.3,0]}><boxGeometry args={[.075,.75,.04]}/><meshStandardMaterial color="#f4f1e8"/></mesh></group>
-    <group position={[0,0,.19]} rotation={[0,0,-.9]}><mesh position={[0,.24,0]}><boxGeometry args={[.095,.55,.05]}/><meshStandardMaterial color="#b8b09e" metalness={.8} roughness={.25}/></mesh></group>
-    <group ref={second} position={[0,0,.22]}><mesh position={[0,.45,0]}><boxGeometry args={[.025,.92,.025]}/><meshStandardMaterial color="#d5fd51" emissive="#d5fd51" emissiveIntensity={1}/></mesh></group>
-    <mesh position={[0,0,.25]}><sphereGeometry args={[.08,32,32]}/><meshStandardMaterial color="#d5fd51" emissive="#d5fd51" emissiveIntensity={.45}/></mesh>
-  </group>
-}
-function WatchObject({progress=0}:{progress?:number}){
-  const g = useRef<THREE.Group>(null);
-  useFrame(({clock})=>{
-    if(!g.current) return;
-    g.current.rotation.y = -0.7 + progress*1.2 + Math.sin(clock.elapsedTime*.45)*.05;
-    g.current.rotation.x = .25 - progress*.18;
-    g.current.position.y = -0.34 + progress*.25 + Math.sin(clock.elapsedTime*.8)*.025;
-    g.current.scale.setScalar(1.05 + progress*.23);
+function disposeObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (mesh.geometry) mesh.geometry.dispose();
+    const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    if (Array.isArray(material)) material.forEach((m) => m.dispose());
+    else material?.dispose();
   });
-  return <Float speed={1.6} floatIntensity={.22} rotationIntensity={.08}><group ref={g} rotation={[.2,-.5,0]}>
-    <Bracelet/><Bezel/><Dial/>
-  </group></Float>;
 }
-export function WatchCanvas({progress=0}:{progress?:number}){
-  return <Canvas camera={{position:[0,0,6.2],fov:38}} gl={{antialias:true,alpha:true}} dpr={[1,2]}>
-    <ambientLight intensity={.35}/><spotLight position={[3,5,5]} intensity={7} angle={.35} penumbra={1}/><pointLight position={[-3,-1,4]} intensity={2.2} color="#d5fd51"/>
-    <WatchObject progress={progress}/>
-    <ContactShadows position={[0,-2.2,0]} opacity={.42} scale={7} blur={2.5}/>
-    <Environment preset="city"/>
-  </Canvas>;
+
+function makeMetal(color: number, roughness = 0.18) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 1,
+    roughness,
+    envMapIntensity: 1.15,
+  });
+}
+
+function makeWatch() {
+  const root = new THREE.Group();
+  root.rotation.set(0.16, -0.62, -0.02);
+
+  const steel = makeMetal(0xd8d5cc, 0.17);
+  const steelDark = makeMetal(0x77766f, 0.23);
+  const bezelBlack = new THREE.MeshStandardMaterial({
+    color: 0x080a08,
+    metalness: 0.78,
+    roughness: 0.25,
+  });
+  const dialMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x090b09,
+    metalness: 0.34,
+    roughness: 0.3,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.18,
+  });
+  const lume = new THREE.MeshStandardMaterial({
+    color: 0xf2eee2,
+    emissive: 0x282719,
+    emissiveIntensity: 0.12,
+    roughness: 0.32,
+  });
+  const green = new THREE.MeshStandardMaterial({
+    color: 0xd5fd51,
+    emissive: 0x77951d,
+    emissiveIntensity: 0.82,
+    metalness: 0.22,
+    roughness: 0.24,
+  });
+
+  // Main case: rounded metal body facing the camera.
+  const caseMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.64, 1.64, 0.3, 128), steel);
+  caseMesh.rotation.x = Math.PI / 2;
+  root.add(caseMesh);
+
+  const caseInset = new THREE.Mesh(new THREE.CylinderGeometry(1.47, 1.47, 0.34, 128), steelDark);
+  caseInset.rotation.x = Math.PI / 2;
+  root.add(caseInset);
+
+  // Black bezel and polished outer ring.
+  const outerRing = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.105, 28, 160), steel);
+  outerRing.position.z = 0.18;
+  root.add(outerRing);
+
+  const blackRing = new THREE.Mesh(new THREE.TorusGeometry(1.39, 0.095, 28, 160), bezelBlack);
+  blackRing.position.z = 0.205;
+  root.add(blackRing);
+
+  // Dial, crystal, and indices.
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(1.27, 1.27, 0.08, 128), dialMaterial);
+  dial.rotation.x = Math.PI / 2;
+  dial.position.z = 0.205;
+  root.add(dial);
+
+  const crystal = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.245, 1.245, 0.035, 128),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.12,
+      transmission: 0.6,
+      roughness: 0.03,
+      metalness: 0,
+      clearcoat: 1,
+    }),
+  );
+  crystal.rotation.x = Math.PI / 2;
+  crystal.position.z = 0.29;
+  root.add(crystal);
+
+  for (let i = 0; i < 60; i++) {
+    const major = i % 5 === 0;
+    const a = (i / 60) * Math.PI * 2;
+    const r = major ? 1.02 : 1.09;
+    const marker = new THREE.Mesh(
+      new THREE.BoxGeometry(major ? 0.065 : 0.018, major ? 0.22 : 0.08, major ? 0.045 : 0.025),
+      major ? lume : steel,
+    );
+    marker.position.set(Math.sin(a) * r, Math.cos(a) * r, 0.33);
+    marker.rotation.z = -a;
+    root.add(marker);
+  }
+
+  // Bezel minute markers.
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.14, 0.02), i % 6 === 0 ? green : lume);
+    marker.position.set(Math.sin(a) * 1.455, Math.cos(a) * 1.455, 0.31);
+    marker.rotation.z = -a;
+    root.add(marker);
+  }
+
+  // Hands — returned as userData references for animation.
+  const hourPivot = new THREE.Group();
+  hourPivot.position.z = 0.38;
+  hourPivot.rotation.z = -0.88;
+  const hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.58, 0.055), steel);
+  hourHand.position.y = 0.24;
+  hourPivot.add(hourHand);
+  root.add(hourPivot);
+
+  const minutePivot = new THREE.Group();
+  minutePivot.position.z = 0.405;
+  minutePivot.rotation.z = 0.36;
+  const minuteHand = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.86, 0.045), lume);
+  minuteHand.position.y = 0.34;
+  minutePivot.add(minuteHand);
+  root.add(minutePivot);
+
+  const secondPivot = new THREE.Group();
+  secondPivot.position.z = 0.435;
+  const secondHand = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1.08, 0.022), green);
+  secondHand.position.y = 0.44;
+  secondPivot.add(secondHand);
+  root.add(secondPivot);
+
+  const pin = new THREE.Mesh(new THREE.SphereGeometry(0.085, 24, 24), green);
+  pin.position.z = 0.46;
+  root.add(pin);
+
+  // Crown and crown guards.
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.25, 32), steel);
+  crown.rotation.z = Math.PI / 2;
+  crown.position.set(1.77, 0, 0.02);
+  root.add(crown);
+  [-0.28, 0.28].forEach((y) => {
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.25, 0.24), steel);
+    guard.position.set(1.58, y, 0);
+    guard.rotation.z = y > 0 ? -0.22 : 0.22;
+    root.add(guard);
+  });
+
+  // Bracelet links with alternating polish.
+  [-1, 1].forEach((side) => {
+    for (let i = 0; i < 8; i++) {
+      const width = Math.max(1.28, 1.92 - i * 0.075);
+      const y = side * (1.77 + i * 0.275);
+      const link = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.22, 0.28),
+        i % 2 === 0 ? steel : steelDark,
+      );
+      link.position.set(0, y, -0.04 - i * 0.01);
+      link.rotation.x = side * i * 0.012;
+      root.add(link);
+
+      const centerLink = new THREE.Mesh(new THREE.BoxGeometry(width * 0.34, 0.225, 0.3), steel);
+      centerLink.position.set(0, y, 0.01 - i * 0.01);
+      root.add(centerLink);
+    }
+  });
+
+  // Lugs connect the bracelet to the case.
+  [-1, 1].forEach((side) => {
+    [-0.62, 0.62].forEach((x) => {
+      const lug = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 0.3), steel);
+      lug.position.set(x, side * 1.58, -0.02);
+      lug.rotation.z = side * x * -0.12;
+      root.add(lug);
+    });
+  });
+
+  root.userData.secondPivot = secondPivot;
+  root.userData.minutePivot = minutePivot;
+  return root;
+}
+
+export function WatchCanvas({ progress = 0 }: { progress?: number }) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef(progress);
+
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(0, 0, 6.3);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance',
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    mount.appendChild(renderer.domElement);
+
+    const watch = makeWatch();
+    scene.add(watch);
+
+    // Invisible floor catches a premium soft shadow.
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, 10),
+      new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.26 }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -2.38;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    watch.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      }
+    });
+
+    scene.add(new THREE.HemisphereLight(0xf7f2e4, 0x050605, 1.35));
+
+    const key = new THREE.SpotLight(0xffffff, 105, 20, 0.34, 0.9, 1.5);
+    key.position.set(4, 6, 7);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    scene.add(key);
+
+    const rim = new THREE.PointLight(0xd5fd51, 22, 12, 2);
+    rim.position.set(-4.2, -1.4, 4.2);
+    scene.add(rim);
+
+    const fill = new THREE.PointLight(0x8ea3ff, 8, 14, 2);
+    fill.position.set(3.8, -2.5, 2.5);
+    scene.add(fill);
+
+    let pointerX = 0;
+    let pointerY = 0;
+    let targetPointerX = 0;
+    let targetPointerY = 0;
+    let frame = 0;
+    let disposed = false;
+
+    const onPointerMove = (event: PointerEvent) => {
+      const rect = mount.getBoundingClientRect();
+      targetPointerX = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
+      targetPointerY = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2;
+    };
+    mount.addEventListener('pointermove', onPointerMove, { passive: true });
+
+    const resize = () => {
+      const width = Math.max(mount.clientWidth, 1);
+      const height = Math.max(mount.clientHeight, 1);
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    };
+
+    const observer = new ResizeObserver(resize);
+    observer.observe(mount);
+    resize();
+
+    const clock = new THREE.Clock();
+    const animate = () => {
+      if (disposed) return;
+      const elapsed = clock.getElapsedTime();
+      const p = THREE.MathUtils.clamp(progressRef.current, 0, 1);
+
+      pointerX += (targetPointerX - pointerX) * 0.045;
+      pointerY += (targetPointerY - pointerY) * 0.045;
+
+      watch.rotation.y = -0.72 + p * 1.22 + pointerX * 0.08 + Math.sin(elapsed * 0.44) * 0.035;
+      watch.rotation.x = 0.22 - p * 0.15 - pointerY * 0.045;
+      watch.rotation.z = -0.018 + pointerX * 0.012;
+      watch.position.y = -0.42 + p * 0.32 + Math.sin(elapsed * 0.7) * 0.035;
+      watch.position.x = pointerX * 0.06;
+      const s = 1.02 + p * 0.22;
+      watch.scale.setScalar(s);
+
+      // 8 beats/sec gives the seconds hand a mechanical sweep instead of a quartz glide.
+      const mechanicalSecond = Math.floor(elapsed * 8) / 8;
+      const secondPivot = watch.userData.secondPivot as THREE.Group;
+      const minutePivot = watch.userData.minutePivot as THREE.Group;
+      secondPivot.rotation.z = -mechanicalSecond * (Math.PI / 30);
+      minutePivot.rotation.z = 0.36 - elapsed * (Math.PI / 1800);
+
+      camera.position.z = 6.3 - p * 0.38;
+      camera.position.x = pointerX * 0.08;
+      camera.lookAt(0, -0.05, 0);
+
+      renderer.render(scene, camera);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      mount.removeEventListener('pointermove', onPointerMove);
+      disposeObject(watch);
+      floor.geometry.dispose();
+      (floor.material as THREE.Material).dispose();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      if (renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
+    };
+  }, []);
+
+  return <div ref={mountRef} className="watch-webgl" aria-label="Interactive 3D luxury watch" />;
 }

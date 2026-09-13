@@ -5,7 +5,7 @@ Production-oriented Next.js marketplace for verified luxury watches with Pons v2
 ## What is implemented
 
 - Next.js 15 App Router + TypeScript, ready for Vercel.
-- WebGL watch experience with React Three Fiber / Three.js + GSAP scroll choreography.
+- WebGL watch experience with vanilla Three.js WebGL / Three.js + GSAP scroll choreography.
 - Custom EIP-1193 / EIP-6963 wallet connection layer. No RainbowKit, Wagmi, Coinbase CDP, WalletConnect, or x402 dependency chain.
 - Robinhood Chain switching/add-network flow (chain id `4663`).
 - Luxury-watch marketplace with the top 10 brand filters.

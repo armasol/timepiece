@@ -5,3 +5,28 @@
 .wallet-connected{border-color:rgba(213,253,81,.24)}.wallet-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 14px rgba(213,253,81,.8)}
 .wallet-backdrop{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);backdrop-filter:blur(18px);display:grid;place-items:center;padding:20px}.wallet-sheet{position:relative;width:min(460px,100%);border:1px solid var(--line);border-radius:30px;background:linear-gradient(155deg,#121510,#070807);box-shadow:0 50px 160px rgba(0,0,0,.75);padding:30px;text-align:left}.wallet-sheet h3{font-size:32px;letter-spacing:-.04em;margin:10px 0}.wallet-sheet>p{color:var(--muted);line-height:1.5}.wallet-close{position:absolute;right:18px;top:18px;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);display:grid;place-items:center}.wallet-icon{width:48px;height:48px;border-radius:16px;background:rgba(213,253,81,.12);border:1px solid rgba(213,253,81,.2);color:var(--green);display:grid;place-items:center}.wallet-options{display:grid;gap:10px;margin-top:22px}.wallet-option{width:100%;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.035);color:var(--text);padding:14px;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;text-align:left}.wallet-option:hover{border-color:rgba(213,253,81,.35);background:rgba(213,253,81,.055)}.wallet-option img,.wallet-fallback{width:40px;height:40px;border-radius:12px}.wallet-fallback{display:grid;place-items:center;background:var(--green);color:#050605;font-weight:900}.wallet-option span{display:grid;gap:3px}.wallet-option small{color:var(--muted)}.wallet-address-row{border:1px solid var(--line);border-radius:16px;padding:14px;margin:18px 0;display:grid;gap:6px}.wallet-address-row span,.wallet-help{color:var(--muted);font-size:12px}.wallet-address-row b{font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.wallet-text-button{margin-top:14px;border:0;background:transparent;color:var(--muted);padding:0}.wallet-error{margin-top:14px;color:#ff8f8f;font-size:13px;line-height:1.45}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.success-line{color:var(--green);font-size:12px}.form-status{color:var(--green);font-size:13px;line-height:1.5}.microcopy{color:var(--muted);font-size:13px;line-height:1.45}.trade-panel{padding:28px;position:sticky;top:110px}.trade-panel h2{font-size:36px;margin:12px 0}.trade-button{margin-top:14px;width:100%;justify-content:center}.detail-watch-art{height:520px;border-radius:36px;background-size:cover;background-position:center}.verification-line{margin-top:18px;display:inline-flex;gap:8px;align-items:center;color:var(--green);font-size:12px;text-transform:uppercase;letter-spacing:.14em}.admin-title{font-size:64px}.table-wrap{overflow:auto}.admin-actions{display:flex;gap:8px;flex-wrap:wrap}.pill:disabled{opacity:.55;cursor:not-allowed;transform:none}.input:focus,.select:focus,.textarea:focus{border-color:rgba(213,253,81,.45);box-shadow:0 0 0 3px rgba(213,253,81,.06)}
 @media(max-width:900px){.two-col{grid-template-columns:1fr}.trade-panel{position:relative;top:auto}.wallet-sheet{padding:24px}.admin-title{font-size:46px}}
+
+/* Vanilla Three.js mount: client-only WebGL, intentionally independent of React's reconciler. */
+.watch-webgl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.watch-webgl canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
+}
+.watch-webgl-loading {
+  position: absolute;
+  inset: 16% 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(213,253,81,.15), rgba(213,253,81,.035) 38%, transparent 72%);
+  filter: blur(24px);
+  animation: watch-load-pulse 1.8s ease-in-out infinite alternate;
+}
+@keyframes watch-load-pulse { to { opacity: .42; transform: scale(.96); } }

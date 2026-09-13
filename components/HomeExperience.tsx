@@ -1,24 +1,57 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
-import { WatchCanvas } from './WatchModel';
+import { WatchScene } from './WatchScene';
 import { topBrands } from '@/lib/demo';
 
-gsap.registerPlugin(ScrollTrigger);
 
 export function HomeExperience(){
   const [progress,setProgress]=useState(0);
   useEffect(()=>{
-    const ctx=gsap.context(()=>{
-      ScrollTrigger.create({trigger:'.hero',start:'top top',end:'bottom bottom',scrub:.7,onUpdate:self=>setProgress(self.progress)});
-      gsap.to('.hero-copy',{y:-150,scale:.72,opacity:.2,scrollTrigger:{trigger:'.hero',start:'top top',end:'45% top',scrub:true}});
-      gsap.to('.floating-card',{opacity:1,y:0,stagger:.08,scrollTrigger:{trigger:'.hero',start:'18% top',end:'55% top',scrub:true}});
-      gsap.to('.hero-canvas-wrap',{y:-40,scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom bottom',scrub:true}});
-    });
-    return()=>ctx.revert();
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+
+    void (async () => {
+      const [{ gsap }, { ScrollTrigger }] = await Promise.all([
+        import('gsap'),
+        import('gsap/ScrollTrigger'),
+      ]);
+      if (disposed) return;
+
+      gsap.registerPlugin(ScrollTrigger);
+      const ctx = gsap.context(() => {
+        ScrollTrigger.create({
+          trigger: '.hero',
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 0.7,
+          onUpdate: (self) => setProgress(self.progress),
+        });
+        gsap.to('.hero-copy', {
+          y: -150,
+          scale: 0.72,
+          opacity: 0.2,
+          scrollTrigger: { trigger: '.hero', start: 'top top', end: '45% top', scrub: true },
+        });
+        gsap.to('.floating-card', {
+          opacity: 1,
+          y: 0,
+          stagger: 0.08,
+          scrollTrigger: { trigger: '.hero', start: '18% top', end: '55% top', scrub: true },
+        });
+        gsap.to('.hero-canvas-wrap', {
+          y: -40,
+          scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom bottom', scrub: true },
+        });
+      });
+      cleanup = () => ctx.revert();
+    })();
+
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
   },[]);
   return <>
     <section className="hero">
@@ -30,7 +63,7 @@ export function HomeExperience(){
           <p className="hero-sub">Buy and trade fractional ownership in verified luxury watches. List your own watch, verify possession, and let the market own part of the piece.</p>
           <div className="hero-actions"><Link className="pill green" href="/watches">Explore Watches <ArrowUpRight size={16}/></Link><Link className="pill" href="/list">List Your Watch <ArrowUpRight size={16}/></Link></div>
         </div>
-        <div className="hero-canvas-wrap"><WatchCanvas progress={progress}/></div>
+        <div className="hero-canvas-wrap"><WatchScene progress={progress}/></div>
         <div className="hero-overlay-data">
           <div className="floating-card fc1"><b>$18.4M</b><span>verified value</span></div>
           <div className="floating-card fc2"><b>10 brands</b><span>curated filters</span></div>
